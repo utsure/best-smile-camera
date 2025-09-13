@@ -7,177 +7,169 @@
   <style>
     :root { --primary-bg: #2c3e50; --secondary-bg: #34495e; --accent-color: #f39c12; --text-color: #ecf0f1; --highlight-color: #3498db; }
     html, body { height: 100%; margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: var(--primary-bg); color: var(--text-color); }
-    .app-screen { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; }
+    #app-container { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 800px; margin: 0 auto; }
+    header { flex-shrink: 0; }
+    main { flex-grow: 1; width: 100%; position: relative; overflow-y: auto; }
     .hidden { display: none !important; }
 
-    /* 各画面のスタイル */
-    h1 { font-size: 28px; color: var(--accent-color); }
-    p { font-size: 18px; max-width: 400px; line-height: 1.5; }
-    .button { background: var(--highlight-color); color: white; border: none; border-radius: 10px; padding: 15px 30px; font-size: 20px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
-    .button:hover { transform: scale(1.05); }
+    /* タブ */
+    #tab-selector { display: flex; width: 100%; background-color: var(--secondary-bg); }
+    .tab-button { flex-grow: 1; padding: 15px 0; background: transparent; color: var(--text-color); border: none; font-size: 18px; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab-button.active { border-bottom: 3px solid var(--accent-color); font-weight: bold; color: var(--accent-color); }
+    .tab-content { display: none; height: 100%; }
+    .tab-content.active { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 15px; box-sizing: border-box; }
 
-    /* 撮影画面のスタイル */
-    #live-screen { justify-content: flex-start; }
-    #video-container { position: relative; width: 95vw; max-width: 500px; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-top: 20px; }
+    /* カメラとキャリブレーション画面 */
+    #video-container { position: relative; width: 95vw; max-width: 500px; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-top: 15px; }
     #video-container::before { content: ''; display: block; padding-top: calc(3 / 4 * 100%); }
     video, #overlay-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    #smile-meter { width: 95%; max-width: 500px; height: 30px; background: var(--secondary-bg); border-radius: 15px; overflow: hidden; margin-top: 20px; border: 2px solid #fff; }
+    
+    .status-text { font-size: 20px; font-weight: bold; color: var(--accent-color); min-height: 50px; }
+    .button { background: var(--highlight-color); color: white; border: none; border-radius: 10px; padding: 15px 30px; font-size: 20px; font-weight: bold; cursor: pointer; transition: transform 0.2s; margin-top: 20px; }
+    .button:hover { transform: scale(1.05); }
+    .button:disabled { background-color: #555; cursor: not-allowed; }
+
+    #smile-meter { width: 95%; max-width: 500px; height: 30px; background: var(--secondary-bg); border-radius: 15px; overflow: hidden; margin-top: 20px; border: 2px solid #fff; position: relative; }
     #smile-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: width 0.2s; }
-    #smile-threshold { position: absolute; left: 80%; height: 100%; border-left: 3px dashed var(--accent-color); }
+    #smile-threshold { position: absolute; top: 0; height: 100%; border-left: 3px dashed var(--accent-color); }
 
-    /* プレゼント画面のスタイル */
-    #present-screen { position: fixed; top: 0; left: 0; z-index: 100; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); }
-    #present-photo { border: 5px solid white; border-radius: 10px; max-width: 90vw; max-height: 70vh; box-shadow: 0 0 30px white; }
-    .present-buttons { margin-top: 20px; display: flex; gap: 20px; }
+    /* アルバム */
+    #album-gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; width: 100%; }
+    .gallery-item { background-color: var(--secondary-bg); border-radius: 10px; overflow: hidden; width: 120px; cursor: pointer; }
+    .gallery-item img { width: 100%; height: 90px; object-fit: cover; display: block; }
+    .gallery-info { padding: 8px; font-size: 12px; text-align: center; }
+    .no-photos-message { color: #95a5a6; font-size: 18px; text-align: center; width: 100%; }
 
-    /* 紙吹雪用のキャンバス */
-    #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 101; pointer-events: none; }
+    /* モーダル */
+    #modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+    #modal-content { display: block; max-width: 90vw; max-height: 80vh; border-radius: 10px; }
+    #modal-caption { margin: 10px auto; width: 80%; text-align: center; color: #ccc; }
+    #modal-close, #modal-download, #modal-delete { position: absolute; top: 15px; color: #f1f1f1; font-size: 30px; cursor: pointer; background: rgba(0,0,0,0.5); border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; }
+    #modal-close { right: 15px; } #modal-download { right: 70px; font-size: 24px; padding-top: 5px;} #modal-delete { right: 125px; font-size: 24px; padding-top: 5px;}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 </head>
 
 <body>
-  <div id="start-screen" class="app-screen">
-    <h1>パーソナル・スマイルカメラ</h1>
-    <p>あなただけの「最高の笑顔」をAIが学習し、自動で撮影します。はじめに2つのステップであなたの表情を登録しましょう。</p>
-    <button id="start-calibration-button" class="button">キャリブレーション開始</button>
+  <div id="app-container">
+    <header>
+      <div id="tab-selector">
+        <button class="tab-button active" data-tab="camera-mode">📸 カメラ</button>
+        <button class="tab-button" data-tab="album-mode">🖼️ アルバム</button>
+      </div>
+    </header>
+    <main>
+      <div id="camera-mode" class="tab-content active">
+        <div class="status-text" id="status-text">あなたの最高の笑顔を撮影します</div>
+        <div id="video-container">
+          <video id="input_video" autoplay muted playsinline></video>
+          <canvas id="overlay-canvas"></canvas>
+        </div>
+        <div id="smile-meter" class="hidden">
+          <div id="smile-bar"><div id="smile-threshold"></div></div>
+        </div>
+        <button id="main-button" class="button">AIモデルを準備中...</button>
+      </div>
+      <div id="album-mode" class="tab-content">
+        <div id="album-gallery"></div>
+      </div>
+    </main>
   </div>
 
-  <div id="neutral-screen" class="app-screen hidden">
-    <h1>ステップ1：真顔の登録</h1>
-    <p>カメラを見て、リラックスした真顔を3秒間キープしてください。</p>
-    <div id="neutral-progress">3</div>
+  <div id="modal">
+    <span id="modal-close">&times;</span> <span id="modal-delete">🗑️</span> <a id="modal-download">⬇️</a>
+    <img id="modal-content"> <div id="modal-caption"></div>
   </div>
-
-  <div id="smile-screen" class="app-screen hidden">
-    <h1>ステップ2：最高の笑顔の登録</h1>
-    <p>カメラを見て、あなたができる最高の笑顔を5秒間キープしてください！</p>
-    <div id="smile-progress">5</div>
-  </div>
-
-  <div id="live-screen" class="app-screen hidden">
-    <p>準備完了！最高の笑顔を見せてください！</p>
-    <div id="video-container">
-      <video id="input_video" autoplay muted playsinline></video>
-      <canvas id="overlay-canvas"></canvas>
-    </div>
-    <div id="smile-meter">
-      <div id="smile-bar"><div id="smile-threshold"></div></div>
-    </div>
-  </div>
-
-  <div id="present-screen" class="app-screen hidden">
-    <h1>あなたの最高の笑顔です！</h1>
-    <img id="present-photo" alt="最高の笑顔">
-    <div class="present-buttons">
-      <a id="download-link" class="button">保存する</a>
-      <button id="retry-button" class="button">もう一度</button>
-    </div>
-  </div>
-  
-  <canvas id="confetti-canvas"></canvas>
 
   <script>
-    // 各画面の要素
-    const screens = {
-      start: document.getElementById('start-screen'),
-      neutral: document.getElementById('neutral-screen'),
-      smile: document.getElementById('smile-screen'),
-      live: document.getElementById('live-screen'),
-      present: document.getElementById('present-screen')
-    };
     const video = document.getElementById('input_video');
+    const mainButton = document.getElementById('main-button');
+    const statusText = document.getElementById('status-text');
+    const smileMeter = document.getElementById('smile-meter');
     const smileBar = document.getElementById('smile-bar');
+    const smileThreshold = document.getElementById('smile-threshold');
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const albumGallery = document.getElementById('album-gallery');
+    const modal = document.getElementById('modal'), modalImg = document.getElementById('modal-content'), modalCaption = document.getElementById('modal-caption'), modalClose = document.getElementById('modal-close'), modalDownload = document.getElementById('modal-download'), modalDelete = document.getElementById('modal-delete');
 
-    // キャリブレーション用変数
-    let neutralScore = 0;
-    let maxSmileScore = 0;
-    let personalizedThreshold = 0;
-    let isCapturing = false;
+    let state = { isCapturing: false, neutralScore: 0, maxSmileScore: 0, personalizedThreshold: 0, photos: [], currentPhotoIndex: null, appMode: 'idle' };
 
-    function switchScreen(screenName) {
-      Object.values(screens).forEach(s => s.classList.add('hidden'));
-      screens[screenName].classList.remove('hidden');
-    }
+    // --- ローカルストレージとアルバム機能 ---
+    function loadPhotos() { try { const d = localStorage.getItem('emotionPhotos'); if (d) state.photos = JSON.parse(d); } catch (e) {} renderAlbum(); }
+    function savePhotos() { try { localStorage.setItem('emotionPhotos', JSON.stringify(state.photos)); } catch (e) {} }
+    function renderAlbum() { albumGallery.innerHTML = ''; if (state.photos.length === 0) { albumGallery.innerHTML = '<p class="no-photos-message">まだ写真がありません。</p>'; return; } const f = document.createDocumentFragment(); state.photos.slice().reverse().forEach((p, i) => { const oi = state.photos.length - 1 - i; const item = document.createElement('div'); item.className = 'gallery-item'; const img = document.createElement('img'); img.src = p.dataUrl; const info = document.createElement('div'); info.className = 'gallery-info'; info.innerHTML = `<div>${new Date(p.timestamp).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>`; item.append(img, info); item.addEventListener('click', () => openModal(p, oi)); f.appendChild(item); }); albumGallery.appendChild(fragment); }
+    function openModal(p, i) { modal.style.display = 'flex'; modalImg.src = p.dataUrl; modalCaption.innerHTML = `${new Date(p.timestamp).toLocaleString()}`; modalDownload.href = p.dataUrl; modalDownload.download = `best_smile_${new Date(p.timestamp).toISOString()}.jpg`; state.currentPhotoIndex = i; }
+    modalClose.onclick = () => modal.style.display = 'none';
+    modalDelete.onclick = () => { if (confirm('この写真を削除しますか？')) { state.photos.splice(state.currentPhotoIndex, 1); savePhotos(); renderAlbum(); modal.style.display = 'none'; } };
 
     // --- 1. モデル読み込み & カメラ起動 ---
     async function initialize() {
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-        faceapi.nets.faceLandmark68Net.loadFromUri('./models')
-      ]);
+      await Promise.all([ faceapi.nets.tinyFaceDetector.loadFromUri('./models'), faceapi.nets.faceLandmark68Net.loadFromUri('./models') ]);
       await startVideo();
-      switchScreen('start');
+      mainButton.innerText = "キャリブレーション開始";
+      mainButton.disabled = false;
+      mainButton.onclick = runCalibration;
     }
-
-    function startVideo() {
-      return new Promise((resolve, reject) => {
-        navigator.mediaDevices.getUserMedia({ video: {} })
-          .then(stream => { video.srcObject = stream; resolve(); })
-          .catch(err => { alert("カメラの起動に失敗しました。"); reject(err); });
-      });
-    }
-
+    function startVideo() { return new Promise((resolve, reject) => { navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => { video.srcObject = stream; resolve(); }).catch(err => { alert("カメラの起動に失敗。"); reject(err); }); }); }
+    function stopVideo() { if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; } }
+    
     // --- 2. キャリブレーション処理 ---
-    document.getElementById('start-calibration-button').onclick = async () => {
-      // 真顔のキャリブレーション
-      switchScreen('neutral');
-      let neutralScores = [];
-      for (let i = 3; i > 0; i--) {
-        document.getElementById('neutral-progress').innerText = i;
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
-        if (detection) neutralScores.push(getSmileIntensity(detection.landmarks));
-        await new Promise(r => setTimeout(r, 1000));
-      }
-      neutralScore = neutralScores.reduce((a, b) => a + b, 0) / neutralScores.length;
+    async function runCalibration() {
+      mainButton.disabled = true;
+      smileMeter.classList.add('hidden');
 
-      // 笑顔のキャリブレーション
-      switchScreen('smile');
-      let smileScores = [];
-      for (let i = 5; i > 0; i--) {
-        document.getElementById('smile-progress').innerText = i;
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
-        if (detection) smileScores.push(getSmileIntensity(detection.landmarks));
-        await new Promise(r => setTimeout(r, 1000));
-      }
-      maxSmileScore = Math.max(...smileScores);
+      const runStep = async (text, duration) => {
+        statusText.innerText = text;
+        let scores = [];
+        for (let i = duration; i > 0; i--) {
+          statusText.innerText = `${text} (${i}秒)`;
+          const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+          if (detection) scores.push(getSmileIntensity(detection.landmarks));
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        return scores;
+      };
 
-      // 個人用しきい値の計算 (真顔と笑顔の中間より80%笑顔に近い点)
-      personalizedThreshold = neutralScore + (maxSmileScore - neutralScore) * 0.8;
-      
-      switchScreen('live');
+      const neutralScores = await runStep("真顔を登録します...", 3);
+      state.neutralScore = neutralScores.reduce((a, b) => a + b, 0) / neutralScores.length;
+
+      const smileScores = await runStep("最高の笑顔を！", 5);
+      state.maxSmileScore = Math.max(...smileScores);
+
+      state.personalizedThreshold = state.neutralScore + (state.maxSmileScore - state.neutralScore) * 0.8;
+      smileThreshold.style.left = `80%`;
+
+      statusText.innerText = "準備完了！最高の笑顔を見せてください！";
+      mainButton.innerText = "キャリブレーションをやり直す";
+      mainButton.disabled = false;
+      smileMeter.classList.remove('hidden');
+      state.appMode = 'live';
       runDetection();
-    };
+    }
     
     // --- 3. 認識と撮影 ---
     function getSmileIntensity(landmarks) {
-        const noseBottom = landmarks.getNose()[3]; // 鼻の下
-        const mouthLeft = landmarks.getMouth()[0]; // 左口角
-        const mouthRight = landmarks.getMouth()[6]; // 右口角
+        const noseBottom = landmarks.getNose()[3];
+        const mouthLeft = landmarks.getMouth()[0];
+        const mouthRight = landmarks.getMouth()[6];
         const mouthCornerY = (mouthLeft.y + mouthRight.y) / 2;
         return noseBottom.y - mouthCornerY;
     }
-
     async function runDetection() {
-      if (isCapturing) return;
-
+      if (state.appMode !== 'live' || state.isCapturing) return;
       const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
       if (detection) {
         const currentSmileIntensity = getSmileIntensity(detection.landmarks);
-        
-        // スマイルメーターを更新
-        const progress = Math.max(0, (currentSmileIntensity - neutralScore) / (maxSmileScore - neutralScore) * 100);
+        const progress = Math.max(0, Math.min(100, (currentSmileIntensity - state.neutralScore) / (state.maxSmileScore - state.neutralScore) * 100));
         smileBar.style.width = `${progress}%`;
-
-        if (currentSmileIntensity > personalizedThreshold) {
-          isCapturing = true;
+        if (currentSmileIntensity > state.personalizedThreshold) {
+          state.isCapturing = true;
           takePhoto();
         }
       }
-      requestAnimationFrame(runDetection); // 次のフレームで再帰的に呼び出し
+      requestAnimationFrame(runDetection);
     }
-
     function takePhoto() {
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
@@ -187,26 +179,35 @@
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg');
-
-      // プレゼント画面の表示
-      document.getElementById('present-photo').src = dataUrl;
-      document.getElementById('download-link').href = dataUrl;
-      document.getElementById('download-link').download = `best_smile_${new Date().toISOString()}.jpg`;
-      switchScreen('present');
-
-      // 紙吹雪でお祝い
-      const confettiCanvas = document.getElementById('confetti-canvas');
-      const myConfetti = confetti.create(confettiCanvas, { resize: true });
-      myConfetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
+      state.photos.push({ dataUrl, timestamp: new Date().toISOString() });
+      savePhotos();
+      statusText.innerText = "最高の笑顔を撮影しました！";
+      setTimeout(() => {
+        state.isCapturing = false;
+        statusText.innerText = "準備完了！最高の笑顔を見せてください！";
+      }, 3000);
     }
 
-    // --- 4. リセット処理 ---
-    document.getElementById('retry-button').onclick = () => {
-      isCapturing = false;
-      switchScreen('start');
-    };
+    // --- 4. イベント設定 ---
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const targetTab = button.dataset.tab;
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        tabContents.forEach(content => {
+          content.classList.toggle('active', content.id === targetTab);
+          if (content.id === 'album-mode' && content.classList.contains('active')) {
+            renderAlbum(); stopVideo();
+          } else if (content.id === 'camera-mode' && content.classList.contains('active')) {
+            startVideo();
+          }
+        });
+      });
+    });
 
-    // 初期化
+    // --- 5. 初期化 ---
+    mainButton.disabled = true;
+    loadPhotos();
     initialize();
   </script>
 </body>
