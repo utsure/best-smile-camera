@@ -2,111 +2,212 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>AI感情認識カメラ (face-api.js)</title>
+  <title>パーソナル・スマイルカメラ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    body { font-family: 'Arial', sans-serif; margin: 0; background: #2c3e50; color: #ecf0f1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; overflow: hidden; padding-bottom: 20px; }
-    #info-text { font-size: 32px; font-weight: bold; padding: 20px 10px 10px; text-align: center; width: 100%; box-sizing: border-box; color: #f39c12; }
-    #emoji-display { font-size: 90px; text-align: center; width: 100%; padding: 0 10px 20px; line-height: 1; }
-    #video-container { position: relative; width: 95vw; max-width: 600px; margin: 0 auto; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); background-color: #34495e; }
+    :root { --primary-bg: #2c3e50; --secondary-bg: #34495e; --accent-color: #f39c12; --text-color: #ecf0f1; --highlight-color: #3498db; }
+    html, body { height: 100%; margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: var(--primary-bg); color: var(--text-color); }
+    .app-screen { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; }
+    .hidden { display: none !important; }
+
+    /* 各画面のスタイル */
+    h1 { font-size: 28px; color: var(--accent-color); }
+    p { font-size: 18px; max-width: 400px; line-height: 1.5; }
+    .button { background: var(--highlight-color); color: white; border: none; border-radius: 10px; padding: 15px 30px; font-size: 20px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+    .button:hover { transform: scale(1.05); }
+
+    /* 撮影画面のスタイル */
+    #live-screen { justify-content: flex-start; }
+    #video-container { position: relative; width: 95vw; max-width: 500px; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-top: 20px; }
     #video-container::before { content: ''; display: block; padding-top: calc(3 / 4 * 100%); }
-    video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    canvas { z-index: 10; }
+    video, #overlay-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #smile-meter { width: 95%; max-width: 500px; height: 30px; background: var(--secondary-bg); border-radius: 15px; overflow: hidden; margin-top: 20px; border: 2px solid #fff; }
+    #smile-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: width 0.2s; }
+    #smile-threshold { position: absolute; left: 80%; height: 100%; border-left: 3px dashed var(--accent-color); }
+
+    /* プレゼント画面のスタイル */
+    #present-screen { position: fixed; top: 0; left: 0; z-index: 100; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); }
+    #present-photo { border: 5px solid white; border-radius: 10px; max-width: 90vw; max-height: 70vh; box-shadow: 0 0 30px white; }
+    .present-buttons { margin-top: 20px; display: flex; gap: 20px; }
+
+    /* 紙吹雪用のキャンバス */
+    #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 101; pointer-events: none; }
   </style>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 </head>
 
 <body>
-  <div id="info-text">AIモデルを準備中...</div>
-  <div id="emoji-display">⏳</div>
-  <div id="video-container">
-    <video id="input_video" autoplay muted playsinline></video>
-    <canvas id="output_canvas"></canvas>
+  <div id="start-screen" class="app-screen">
+    <h1>パーソナル・スマイルカメラ</h1>
+    <p>あなただけの「最高の笑顔」をAIが学習し、自動で撮影します。はじめに2つのステップであなたの表情を登録しましょう。</p>
+    <button id="start-calibration-button" class="button">キャリブレーション開始</button>
   </div>
 
+  <div id="neutral-screen" class="app-screen hidden">
+    <h1>ステップ1：真顔の登録</h1>
+    <p>カメラを見て、リラックスした真顔を3秒間キープしてください。</p>
+    <div id="neutral-progress">3</div>
+  </div>
+
+  <div id="smile-screen" class="app-screen hidden">
+    <h1>ステップ2：最高の笑顔の登録</h1>
+    <p>カメラを見て、あなたができる最高の笑顔を5秒間キープしてください！</p>
+    <div id="smile-progress">5</div>
+  </div>
+
+  <div id="live-screen" class="app-screen hidden">
+    <p>準備完了！最高の笑顔を見せてください！</p>
+    <div id="video-container">
+      <video id="input_video" autoplay muted playsinline></video>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
+    <div id="smile-meter">
+      <div id="smile-bar"><div id="smile-threshold"></div></div>
+    </div>
+  </div>
+
+  <div id="present-screen" class="app-screen hidden">
+    <h1>あなたの最高の笑顔です！</h1>
+    <img id="present-photo" alt="最高の笑顔">
+    <div class="present-buttons">
+      <a id="download-link" class="button">保存する</a>
+      <button id="retry-button" class="button">もう一度</button>
+    </div>
+  </div>
+  
+  <canvas id="confetti-canvas"></canvas>
+
   <script>
-    const video = document.getElementById('input_video');
-    const infoText = document.getElementById('info-text');
-    const emojiDisplay = document.getElementById('emoji-display');
-
-    const emotionEmojis = {
-      "neutral": "😐", "happy": "😊", "sad": "😔", "angry": "😠", "surprised": "😮", "fearful": "😨", "disgusted": "🤢", "No Face": "🤔"
+    // 各画面の要素
+    const screens = {
+      start: document.getElementById('start-screen'),
+      neutral: document.getElementById('neutral-screen'),
+      smile: document.getElementById('smile-screen'),
+      live: document.getElementById('live-screen'),
+      present: document.getElementById('present-screen')
     };
+    const video = document.getElementById('input_video');
+    const smileBar = document.getElementById('smile-bar');
 
-    // AIモデルの読み込み
-    async function loadModels() {
-      // face-api.jsに必要なモデルファイルを 'models' フォルダから読み込む
+    // キャリブレーション用変数
+    let neutralScore = 0;
+    let maxSmileScore = 0;
+    let personalizedThreshold = 0;
+    let isCapturing = false;
+
+    function switchScreen(screenName) {
+      Object.values(screens).forEach(s => s.classList.add('hidden'));
+      screens[screenName].classList.remove('hidden');
+    }
+
+    // --- 1. モデル読み込み & カメラ起動 ---
+    async function initialize() {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-        faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
-        faceapi.nets.faceRecognitionNet.loadFromUri('./models'), // これは通常顔認識用ですが、念のため
-        faceapi.nets.faceExpressionNet.loadFromUri('./models')  // ★感情認識のメインモデル
+        faceapi.nets.faceLandmark68Net.loadFromUri('./models')
       ]);
-      infoText.innerText = "カメラにアクセス中...";
-      emojiDisplay.innerText = "📷";
-      startVideo();
+      await startVideo();
+      switchScreen('start');
     }
 
-    // カメラの起動
     function startVideo() {
-      navigator.mediaDevices.getUserMedia({ video: {} })
-        .then(stream => {
-          video.srcObject = stream;
-        })
-        .catch(err => {
-          console.error("カメラエラー: ", err);
-          infoText.innerText = "エラー: カメラ起動に失敗";
-          emojiDisplay.innerText = "🚫";
-        });
+      return new Promise((resolve, reject) => {
+        navigator.mediaDevices.getUserMedia({ video: {} })
+          .then(stream => { video.srcObject = stream; resolve(); })
+          .catch(err => { alert("カメラの起動に失敗しました。"); reject(err); });
+      });
     }
 
-    // ビデオが再生開始されたら、感情認識ループを開始
-    video.addEventListener('play', () => {
-      const canvas = faceapi.createCanvasFromMedia(video);
-      document.getElementById('video-container').append(canvas);
-      const displaySize = { width: video.clientWidth, height: video.clientHeight };
-      faceapi.matchDimensions(canvas, displaySize);
+    // --- 2. キャリブレーション処理 ---
+    document.getElementById('start-calibration-button').onclick = async () => {
+      // 真顔のキャリブレーション
+      switchScreen('neutral');
+      let neutralScores = [];
+      for (let i = 3; i > 0; i--) {
+        document.getElementById('neutral-progress').innerText = i;
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+        if (detection) neutralScores.push(getSmileIntensity(detection.landmarks));
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      neutralScore = neutralScores.reduce((a, b) => a + b, 0) / neutralScores.length;
 
-      infoText.innerText = "顔を検出中...";
-      emojiDisplay.innerText = "🤔";
+      // 笑顔のキャリブレーション
+      switchScreen('smile');
+      let smileScores = [];
+      for (let i = 5; i > 0; i--) {
+        document.getElementById('smile-progress').innerText = i;
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+        if (detection) smileScores.push(getSmileIntensity(detection.landmarks));
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      maxSmileScore = Math.max(...smileScores);
 
-      setInterval(async () => {
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions();
+      // 個人用しきい値の計算 (真顔と笑顔の中間より80%笑顔に近い点)
+      personalizedThreshold = neutralScore + (maxSmileScore - neutralScore) * 0.8;
+      
+      switchScreen('live');
+      runDetection();
+    };
+    
+    // --- 3. 認識と撮影 ---
+    function getSmileIntensity(landmarks) {
+        const noseBottom = landmarks.getNose()[3]; // 鼻の下
+        const mouthLeft = landmarks.getMouth()[0]; // 左口角
+        const mouthRight = landmarks.getMouth()[6]; // 右口角
+        const mouthCornerY = (mouthLeft.y + mouthRight.y) / 2;
+        return noseBottom.y - mouthCornerY;
+    }
+
+    async function runDetection() {
+      if (isCapturing) return;
+
+      const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+      if (detection) {
+        const currentSmileIntensity = getSmileIntensity(detection.landmarks);
         
-        // 描画をクリア
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-        
-        if (detections && detections.length > 0) {
-          const resizedDetections = faceapi.resizeResults(detections, displaySize);
-          
-          // 顔の周りのボックスとランドマークを描画 (確認用)
-          faceapi.draw.drawDetections(canvas, resizedDetections);
-          faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-          
-          // 感情を取得して表示
-          let highestEmotion = "neutral";
-          let highestValue = 0;
-          const expressions = resizedDetections[0].expressions;
+        // スマイルメーターを更新
+        const progress = Math.max(0, (currentSmileIntensity - neutralScore) / (maxSmileScore - neutralScore) * 100);
+        smileBar.style.width = `${progress}%`;
 
-          for (const emotion in expressions) {
-            if (expressions[emotion] > highestValue) {
-              highestValue = expressions[emotion];
-              highestEmotion = emotion;
-            }
-          }
-          
-          infoText.innerText = `Emotion: ${highestEmotion}`;
-          emojiDisplay.innerText = emotionEmojis[highestEmotion];
-
-        } else {
-          infoText.innerText = "顔を検出中...";
-          emojiDisplay.innerText = "🤔";
+        if (currentSmileIntensity > personalizedThreshold) {
+          isCapturing = true;
+          takePhoto();
         }
-      }, 100); // 100ミリ秒ごとに認識
-    });
+      }
+      requestAnimationFrame(runDetection); // 次のフレームで再帰的に呼び出し
+    }
 
-    // 最初にモデルを読み込む
-    loadModels();
+    function takePhoto() {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+
+      // プレゼント画面の表示
+      document.getElementById('present-photo').src = dataUrl;
+      document.getElementById('download-link').href = dataUrl;
+      document.getElementById('download-link').download = `best_smile_${new Date().toISOString()}.jpg`;
+      switchScreen('present');
+
+      // 紙吹雪でお祝い
+      const confettiCanvas = document.getElementById('confetti-canvas');
+      const myConfetti = confetti.create(confettiCanvas, { resize: true });
+      myConfetti({ particleCount: 200, spread: 160, origin: { y: 0.6 } });
+    }
+
+    // --- 4. リセット処理 ---
+    document.getElementById('retry-button').onclick = () => {
+      isCapturing = false;
+      switchScreen('start');
+    };
+
+    // 初期化
+    initialize();
   </script>
 </body>
 </html>
