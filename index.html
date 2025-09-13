@@ -95,7 +95,29 @@
     // --- ローカルストレージとアルバム機能 ---
     function loadPhotos() { try { const d = localStorage.getItem('emotionPhotos'); if (d) state.photos = JSON.parse(d); } catch (e) {} renderAlbum(); }
     function savePhotos() { try { localStorage.setItem('emotionPhotos', JSON.stringify(state.photos)); } catch (e) {} }
-    function renderAlbum() { albumGallery.innerHTML = ''; if (state.photos.length === 0) { albumGallery.innerHTML = '<p class="no-photos-message">まだ写真がありません。</p>'; return; } const f = document.createDocumentFragment(); state.photos.slice().reverse().forEach((p, i) => { const oi = state.photos.length - 1 - i; const item = document.createElement('div'); item.className = 'gallery-item'; const img = document.createElement('img'); img.src = p.dataUrl; const info = document.createElement('div'); info.className = 'gallery-info'; info.innerHTML = `<div>${new Date(p.timestamp).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>`; item.append(img, info); item.addEventListener('click', () => openModal(p, oi)); f.appendChild(item); }); albumGallery.appendChild(fragment); }
+    function renderAlbum() {
+      albumGallery.innerHTML = '';
+      if (state.photos.length === 0) { albumGallery.innerHTML = '<p class="no-photos-message">まだ写真がありません。</p>'; return; }
+      
+      // ★★★ ここが修正点 ★★★
+      // 'fragment' という変数を宣言する
+      const fragment = document.createDocumentFragment(); 
+      
+      state.photos.slice().reverse().forEach((p, i) => {
+        const oi = state.photos.length - 1 - i;
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+        const img = document.createElement('img');
+        img.src = p.dataUrl;
+        const info = document.createElement('div');
+        info.className = 'gallery-info';
+        info.innerHTML = `<div>${new Date(p.timestamp).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>`;
+        item.append(img, info);
+        item.addEventListener('click', () => openModal(p, oi));
+        fragment.appendChild(item); // 宣言した'fragment'変数を使う
+      });
+      albumGallery.appendChild(fragment); // 宣言した'fragment'変数を使う
+    }
     function openModal(p, i) { modal.style.display = 'flex'; modalImg.src = p.dataUrl; modalCaption.innerHTML = `${new Date(p.timestamp).toLocaleString()}`; modalDownload.href = p.dataUrl; modalDownload.download = `best_smile_${new Date(p.timestamp).toISOString()}.jpg`; state.currentPhotoIndex = i; }
     modalClose.onclick = () => modal.style.display = 'none';
     modalDelete.onclick = () => { if (confirm('この写真を削除しますか？')) { state.photos.splice(state.currentPhotoIndex, 1); savePhotos(); renderAlbum(); modal.style.display = 'none'; } };
@@ -173,10 +195,12 @@
       const dataUrl = canvas.toDataURL('image/jpeg');
       state.photos.push({ dataUrl, timestamp: new Date().toISOString() });
       savePhotos();
-      statusText.innerText = "最高の笑顔を撮影しました！";
+      statusText.innerText = "最高の笑顔を撮影しました！アルバムで確認できます。";
+      mainButton.disabled = true; // 撮影後は一時的にボタンを無効化
       setTimeout(() => {
         state.isCapturing = false;
         statusText.innerText = "準備完了！最高の笑顔を見せてください！";
+        mainButton.disabled = false; // ボタンを再度有効化
       }, 3000);
     }
 
@@ -191,7 +215,14 @@
           if (content.id === 'album-mode' && content.classList.contains('active')) {
             renderAlbum(); stopVideo(); state.appMode = 'album';
           } else if (content.id === 'camera-mode' && content.classList.contains('active')) {
-            startVideo(); state.appMode = 'idle'; statusText.innerText = "ボタンを押して調整を開始します";
+            startVideo(); 
+            // キャリブレーションが済んでいればliveモードに、そうでなければidleモードに
+            if(state.personalizedThreshold > 0) {
+                state.appMode = 'live';
+                runDetection(); // 検出を再開
+            } else {
+                state.appMode = 'idle';
+            }
           }
         });
       });
